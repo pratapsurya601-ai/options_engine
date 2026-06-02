@@ -1,0 +1,77 @@
+name: Chain Snapshot Capture
+
+# Captures one option chain snapshot every 5 min during Indian market hours
+# and writes to Aiven Postgres. Runs free in GitHub Actions (unlimited for
+# public repos; ~250 min/month consumed vs 2000 min/month free private quota).
+#
+# Quota math:
+#   Market hours: 9:15-15:30 IST = 6h 15min = 75 snapshots/day
+#   Each run: ~30-60s (checkout + pip + python)
+#   5 weekdays/week ~ 375 runs/week ~ 5h/week ~ 21h/month compute
+#   Free quota:   public repos = unlimited, private = 2000 min/month
+#   Headroom:     ~6x safety margin even on private
+#
+# IMPORTANT — daily Kite token rotation:
+#   KITE_ACCESS_TOKEN expires at 6:00 AM IST every day. The workflow will fail
+#   with auth errors until you refresh it. See docs/github_actions_setup.md
+#   for the kite_token_check workflow + refresh procedure.
+
+on:
+  schedule:
+    # Cron is in UTC. IST = UTC+5:30.
+    # 9:15 IST = 03:45 UTC, 15:30 IST = 10:00 UTC
+    # We use three separate cron lines to cover the window cleanly:
+    - cron: '45,50,55 3 * * 1-5'   # 9:15, 9:20, 9:25 IST
+    - cron: '*/5 4-9 * * 1-5'      # 9:30 IST → 15:25 IST
+    - cron: '0 10 * * 1-5'         # 15:30 IST (last fire)
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Symbol to capture (NIFTY or BANKNIFTY)'
+        default: 'NIFTY'
+        required: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: chain-snapshot
+      cancel-in-progress: false   # never cancel an in-flight capture
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Take snapshot
+        env:
+          DATABASE_URL:       ${{ secrets.DATABASE_URL }}
+          KITE_API_KEY:       ${{ secrets.KITE_API_KEY }}
+          KITE_API_SECRET:    ${{ secrets.KITE_API_SECRET }}
+          KITE_ACCESS_TOKEN:  ${{ secrets.KITE_ACCESS_TOKEN }}
+          PYTHONIOENCODING:   utf-8
+          SYMBOL: ${{ github.event.inputs.symbol || 'NIFTY' }}
+        run: |
+          python -m engine.data.chain_snapshot run \
+            --once --aiven-only --force \
+            --symbol "$SYMBOL"
+
+      - name: Report on failure
+        if: failure()
+        run: |
+          echo "::error::Chain snapshot capture failed."
+          echo "::error::Common causes:"
+          echo "::error::  1. KITE_ACCESS_TOKEN expired (refresh daily before 9:15 AM IST)"
+          echo "::error::  2. Aiven Postgres unreachable (check console.aiven.io)"
+          echo "::error::  3. Kite API rate limit / outage"
+          echo "::error::See docs/github_actions_setup.md for the runbook."

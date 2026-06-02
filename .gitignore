@@ -10,9 +10,9 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Data / artifacts
-data/
-logs/
+# Data / artifacts (root-level only — not engine/data which is a code module)
+/data/
+/logs/
 *.parquet
 *.duckdb
 
