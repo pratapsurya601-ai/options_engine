@@ -1,0 +1,4 @@
+{
+  "low_iv_threshold": 0.11,
+  "high_iv_threshold": 0.17
+}

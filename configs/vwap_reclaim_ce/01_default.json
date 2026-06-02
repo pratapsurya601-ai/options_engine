@@ -1,0 +1,11 @@
+{
+  "min_below_bars": 10,
+  "min_activity_z": 0.5,
+  "require_macd_bullish": true,
+  "strike_offset_steps": 0,
+  "target_premium_pts": 10,
+  "stop_premium_pts": 8,
+  "hold_minutes": 20,
+  "time_window_start": 30,
+  "time_window_end": 270
+}

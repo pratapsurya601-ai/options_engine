@@ -1,0 +1,8 @@
+{
+  "exit_mode": "fixed",
+  "target_premium_pts": 15,
+  "stop_premium_pts": 10,
+  "hold_minutes": 30,
+  "trail_activation_pts": 5,
+  "trail_distance_pts": 3
+}

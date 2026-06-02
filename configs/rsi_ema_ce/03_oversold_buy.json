@@ -1,0 +1,12 @@
+{
+  "ema_fast": 20,
+  "ema_slow": 50,
+  "cross_recency_bars": 5,
+  "rsi_period": 14,
+  "rsi_min": 30,
+  "rsi_max": 50,
+  "strike_offset_steps": 0,
+  "target_premium_pts": 10,
+  "stop_premium_pts": 8,
+  "hold_minutes": 15
+}

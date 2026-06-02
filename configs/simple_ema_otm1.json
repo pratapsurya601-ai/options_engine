@@ -1,0 +1,6 @@
+{
+  "strike_offset_steps": 1,
+  "target_premium_pts": 12,
+  "stop_premium_pts": 8,
+  "hold_minutes": 25
+}

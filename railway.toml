@@ -1,0 +1,27 @@
+# Railway configuration for options_engine
+# Reference: https://docs.railway.app/reference/config-as-code
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+# Default service: continuous loop poller (only one needed if using loop mode)
+# For cron-based deploys, see [[crons]] below
+startCommand = "python -m ingestor.runner loop"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Railway cron jobs — alternative to loop mode (more efficient)
+# Comment out startCommand above and use these instead
+
+[[crons]]
+name = "option_chain_5min"
+# Every 5 min, Mon-Fri, 9:15-15:30 IST = 3:45-10:00 UTC
+schedule = "*/5 3-10 * * 1-5"
+command = "python -m ingestor.runner option_chain"
+
+[[crons]]
+name = "fii_dii_eod"
+# 6:30 PM IST = 13:00 UTC, Mon-Fri
+schedule = "0 13 * * 1-5"
+command = "python -m ingestor.runner fii_dii"

@@ -1,0 +1,13 @@
+{
+  "ema_fast": 20,
+  "ema_slow": 50,
+  "cross_recency_bars": 1,
+  "strike_offset_steps": 0,
+  "exit_mode": "fixed",
+  "target_premium_pts": 10,
+  "stop_premium_pts": 8,
+  "hold_minutes": 15,
+  "direction_filter": "bullish_only",
+  "time_window_start": 30,
+  "time_window_end": 120
+}

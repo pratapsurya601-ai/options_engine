@@ -1,0 +1,12 @@
+{
+  "weekday_fire": [2],
+  "sigma_short_mult": 2.0,
+  "wing_width_pts": 100,
+  "min_credit_pts": 1.0,
+  "min_dte_days": 1,
+  "max_dte_days": 1,
+  "time_window_start": 30,
+  "time_window_end": 240,
+  "backtest_stop_credit_mult": 0,
+  "backtest_target_close_pct": 0.50
+}

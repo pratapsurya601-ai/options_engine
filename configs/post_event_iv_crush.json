@@ -1,0 +1,8 @@
+{
+  "time_window_start": 195,
+  "time_window_end": 315,
+  "target_pct_decay": 0.30,
+  "stop_pct_loss": 1.0,
+  "add_wings": true,
+  "wing_width_pts": 250
+}

@@ -1,0 +1,5 @@
+{
+  "hold_minutes": 180,
+  "target_fill_pct": 0.5,
+  "rejection_required": false
+}

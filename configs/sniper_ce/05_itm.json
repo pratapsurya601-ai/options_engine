@@ -1,0 +1,16 @@
+{
+  "trend_stable_bars": 10,
+  "rsi_min": 40.0,
+  "rsi_max": 60.0,
+  "macd_cross_bars": 3,
+  "min_activity_z": 0.5,
+  "require_pullback_to_ema20": true,
+  "pullback_pct": 0.005,
+  "time_window_start": 45,
+  "time_window_end": 225,
+  "strike_offset_steps": -2,
+  "target_premium_pts": 15.0,
+  "stop_premium_pts": 8.0,
+  "hold_minutes": 30,
+  "eod_close_minutes": 360
+}

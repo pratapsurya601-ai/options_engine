@@ -1,0 +1,7 @@
+{
+  "min_hours_to_event": 24,
+  "max_hours_to_event": 36,
+  "iv_skip_threshold": 0.22,
+  "target_pct_gain": 0.40,
+  "stop_pct_loss": 0.30
+}

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Options Engine — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #181b22;
+      --panel-2: #1f232c;
+      --border: #2a2f3a;
+      --text: #e7e9ee;
+      --text-dim: #9aa3b2;
+      --accent: #4fc3f7;
+      --good: #66bb6a;
+      --bad: #ef5350;
+      --warn: #ffa726;
+      --neutral: #78909c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px; line-height: 1.5;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0 0 6px; font-size: 22px; font-weight: 600; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px;
+         text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+    .grid { display: grid; gap: 12px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 14px;
+    }
+    .panel-sub { background: var(--panel-2); }
+    .header-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px; padding: 12px 16px;
+      background: var(--panel); border-radius: 6px; border: 1px solid var(--border);
+    }
+    .status-pill {
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+    }
+    .pill-good { background: rgba(102,187,106,0.15); color: var(--good); }
+    .pill-bad { background: rgba(239,83,80,0.15); color: var(--bad); }
+    .pill-warn { background: rgba(255,167,38,0.15); color: var(--warn); }
+    .pill-neutral { background: rgba(120,144,156,0.18); color: var(--neutral); }
+    .stat {
+      display: flex; flex-direction: column;
+    }
+    .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 22px; font-weight: 600; color: var(--text); margin-top: 2px; }
+    .stat-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .row-flex { display: flex; gap: 14px; flex-wrap: wrap; }
+    .row-flex > * { flex: 1; min-width: 120px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .empty { color: var(--text-dim); font-style: italic; padding: 16px 0; text-align: center; }
+    form .form-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px;
+    }
+    .form-field { display: flex; flex-direction: column; }
+    .form-field label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
+    .form-field input, .form-field select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text); padding: 6px 9px; font-size: 13px;
+    }
+    button.primary {
+      background: var(--accent); color: #061419; border: none;
+      padding: 8px 18px; border-radius: 4px; font-size: 13px; font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary:hover { background: #6fd0ff; }
+    button.secondary {
+      background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+      padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;
+    }
+    .pos-good { color: var(--good); font-weight: 600; }
+    .pos-bad { color: var(--bad); font-weight: 600; }
+    .small { font-size: 12px; color: var(--text-dim); }
+    .idea-card {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 12px; margin-bottom: 10px;
+    }
+    .idea-card.rejected { opacity: 0.6; border-style: dashed; }
+    .idea-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .legs { font-family: ui-monospace, "SF Mono", monospace; font-size: 12px;
+            background: var(--bg); padding: 6px 9px; border-radius: 3px; }
+    .rationale { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+    .rationale li { margin: 2px 0; }
+    .refresh-bar {
+      display: flex; gap: 12px; align-items: center; font-size: 12px;
+      color: var(--text-dim);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-live { background: var(--good); animation: pulse 2s infinite; }
+    .dot-stale { background: var(--text-dim); }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .error-box {
+      background: rgba(239,83,80,0.1); border: 1px solid var(--bad);
+      border-radius: 4px; padding: 10px; color: var(--bad); font-size: 12px;
+    }
+    /* Polish */
+    body { font-feature-settings: "tnum" 1, "lnum" 1; }
+    table { font-variant-numeric: tabular-nums; }
+    h1, h2, h3 { line-height: 1.2; }
+    .panel { transition: transform 120ms ease, border-color 120ms ease; }
+    .panel:hover { transform: translateY(-1px); border-color: #353c4a; }
+    table thead th, table tr:first-child th {
+      position: sticky; top: 0; background: var(--panel); z-index: 1;
+    }
+    .header-accent {
+      background: linear-gradient(90deg, #4fc3f7 0%, #29b6f6 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .chart-wrap { position: relative; height: 220px; }
+    .skeleton {
+      background: linear-gradient(90deg, #1f232c 25%, #2a2f3a 50%, #1f232c 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite;
+      border-radius: 4px; height: 14px; margin: 6px 0;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .empty-state {
+      color: var(--text-dim); font-size: 12px; padding: 18px 12px;
+      text-align: center; line-height: 1.5;
+    }
+    .empty-state strong { color: var(--text); display: block; margin-bottom: 4px; }
+    nav.subnav { margin: 6px 0 14px; font-size: 12px; }
+    nav.subnav a {
+      color: var(--text-dim); text-decoration: none; margin-right: 14px;
+      padding: 3px 8px; border-radius: 4px;
+    }
+    nav.subnav a:hover { background: var(--panel); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-row">
+      <div>
+        <h1><span class="header-accent">NIFTY Options Engine</span></h1>
+        <div class="small">Dashboard · personal trading research · paper-trade tracker</div>
+        <nav class="subnav">
+          <a href="/">Dashboard</a>
+          <a href="/briefing">Briefing</a>
+          <a href="/research">Research</a>
+        </nav>
+      </div>
+      <div class="refresh-bar">
+        <span id="live-dot" class="dot dot-stale"></span>
+        <span id="last-update">Loading...</span>
+        <button class="secondary" onclick="refreshAll()">Refresh now</button>
+      </div>
+    </div>
+
+    <!-- STATE -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <h2>Market State</h2>
+      <div class="row-flex" id="state-row">
+        <div class="stat"><div class="stat-label">NIFTY Spot</div><div class="stat-value" id="state-spot">—</div></div>
+        <div class="stat"><div class="stat-label">ATM IV</div><div class="stat-value" id="state-iv">—</div></div>
+        <div class="stat"><div class="stat-label">Expiry / DTE</div><div class="stat-value" id="state-expiry">—</div></div>
+        <div class="stat"><div class="stat-label">Market</div><div class="stat-value" id="state-mkt">—</div></div>
+        <div class="stat"><div class="stat-label">Data Source</div><div class="stat-value" id="state-src">—</div></div>
+      </div>
+      <div id="state-event" style="margin-top: 10px;"></div>
+      <div id="state-error" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- POSITIONS + SIGNALS -->
+    <div class="grid grid-2" style="margin-bottom: 12px;">
+      <div class="panel">
+        <h2>Open Paper Positions</h2>
+        <div id="open-positions"><div class="empty">No open positions</div></div>
+      </div>
+      <div class="panel">
+        <h2>Lifetime Paper Stats</h2>
+        <div class="row-flex">
+          <div class="stat"><div class="stat-label">Trades</div><div class="stat-value" id="stat-trades">0</div></div>
+          <div class="stat"><div class="stat-label">Wins / Losses</div><div class="stat-value" id="stat-wl">0/0</div></div>
+          <div class="stat"><div class="stat-label">Win Rate</div><div class="stat-value" id="stat-wr">—</div></div>
+          <div class="stat"><div class="stat-label">Total P&L</div><div class="stat-value" id="stat-pnl">—</div></div>
+        </div>
+        <h2 style="margin-top: 18px;">Closed Today</h2>
+        <div id="closed-today"><div class="empty">No closes today</div></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom: 12px;">
+      <div class="panel">
+        <h2>Cumulative Paper P&L (last 30d)</h2>
+        <div class="chart-wrap"><canvas id="pnlCurveChart"></canvas></div>
+        <div id="pnlCurveEmpty" class="empty-state" style="display:none">
+          <strong>No closed paper trades yet.</strong>
+          Watchers active — chart fills as trades close.
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Rule Fire Frequency (7d)</h2>
+        <div class="chart-wrap"><canvas id="ruleFiresChart"></canvas></div>
+        <div id="ruleFiresEmpty" class="empty-state" style="display:none">
+          <strong>No rule fires in the last 7 days.</strong>
+          Signals will populate here once watchers detect setups.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 12px;">
+      <h2>Today's Signals</h2>
+      <div id="signals-today"><div class="empty">No signals fired today</div></div>
+    </div>
+
+    <!-- RECOMMENDER -->
+    <div class="panel">
+      <h2>Run Recommender</h2>
+      <form id="rec-form" onsubmit="event.preventDefault(); runRecommender();">
+        <div class="form-row">
+          <div class="form-field"><label>Spot</label><input id="f-spot" type="number" step="0.01" value="23907"></div>
+          <div class="form-field"><label>ATM IV (decimal)</label><input id="f-iv" type="number" step="0.001" value="0.125"></div>
+          <div class="form-field"><label>DTE (days)</label><input id="f-dte" type="number" value="6"></div>
+          <div class="form-field">
+            <label>View</label>
+            <select id="f-view">
+              <option value="bullish">Bullish</option>
+              <option value="bearish">Bearish</option>
+              <option value="neutral" selected>Neutral</option>
+              <option value="vol_long">Vol-Long</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>Conviction (0-1)</label><input id="f-conv" type="number" step="0.05" min="0" max="1" value="0.6"></div>
+          <div class="form-field"><label>Target Win % (0-1)</label><input id="f-win" type="number" step="0.05" min="0.3" max="0.95" value="0.55"></div>
+          <div class="form-field"><label>Capital (INR)</label><input id="f-cap" type="number" value="50000"></div>
+          <div class="form-field">
+            <label>Mode</label>
+            <select id="f-mode">
+              <option value="scalp" selected>Scalp (intraday, naked CE/PE)</option>
+              <option value="strategy">Strategy (expiry-based)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" id="scalp-fields">
+          <div class="form-field"><label>Target Premium pts</label><input id="f-targetpts" type="number" value="15"></div>
+          <div class="form-field"><label>Hold (days, 0.25=intraday)</label><input id="f-holddays" type="number" step="0.05" value="0.25"></div>
+          <div></div><div></div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="primary" type="submit">Run</button>
+          <button class="secondary" type="button" onclick="prefillFromLive()">Prefill from live state</button>
+          <span class="small" id="rec-status"></span>
+        </div>
+      </form>
+      <div id="rec-results" style="margin-top: 16px;"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const REFRESH_MS = 5000;   // 5 seconds — near real-time for scalping
+
+    async function fetchJSON(url, opts) {
+      const r = await fetch(url, opts);
+      return r.json();
+    }
+
+    function pillForMarket(s) {
+      if (s.includes('open')) return `<span class="status-pill pill-good">${s}</span>`;
+      if (s.includes('pre-open')) return `<span class="status-pill pill-warn">${s}</span>`;
+      return `<span class="status-pill pill-neutral">${s}</span>`;
+    }
+
+    function pnlClass(pnl) {
+      if (pnl == null) return '';
+      return pnl > 0 ? 'pos-good' : pnl < 0 ? 'pos-bad' : '';
+    }
+
+    function fmt(n, dp=2) {
+      if (n == null || n === undefined) return '—';
+      return Number(n).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    }
+
+    function fmtINR(n) {
+      if (n == null) return '—';
+      const sign = n < 0 ? '-' : '';
+      return sign + 'Rs ' + Math.abs(Math.round(n)).toLocaleString('en-IN');
+    }
+
+    async function refreshState() {
+      const s = await fetchJSON('/api/state');
+      document.getElementById('state-spot').innerText = s.spot != null ? fmt(s.spot, 2) : '—';
+      document.getElementById('state-iv').innerText = s.atm_iv != null ? (fmt(s.atm_iv * 100, 1) + '%') : '—';
+      document.getElementById('state-expiry').innerText = (s.expiry || '—') + (s.dte_days ? ` (${fmt(s.dte_days, 1)}d)` : '');
+      document.getElementById('state-mkt').innerHTML = pillForMarket(s.market_status || 'unknown');
+      document.getElementById('state-src').innerText = s.source + (s.ok ? '' : ' (offline)');
+
+      const eventBox = document.getElementById('state-event');
+      eventBox.innerHTML = '';
+      if (s.event_risk && (s.event_risk.spans_event || s.event_risk.pre_event_now.length)) {
+        const names = (s.event_risk.events || []).map(e => `${e.name} ${e.date}`).join(', ');
+        eventBox.innerHTML = `<div class="status-pill pill-warn">EVENT: ${names}</div>
+          <div class="small" style="margin-top: 4px;">${s.event_risk.advice || ''}</div>`;
+      }
+
+      const errBox = document.getElementById('state-error');
+      errBox.innerHTML = '';
+      if (!s.ok && s.error) {
+        errBox.innerHTML = `<div class="error-box">${s.source} offline: ${s.error}</div>`;
+      }
+
+      document.getElementById('live-dot').className = 'dot ' + (s.ok ? 'dot-live' : 'dot-stale');
+      document.getElementById('last-update').innerText = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    async function refreshPositions() {
+      const d = await fetchJSON('/api/positions');
+      const openDiv = document.getElementById('open-positions');
+      if (!d.open.length) {
+        openDiv.innerHTML = '<div class="empty">No open positions</div>';
+      } else {
+        openDiv.innerHTML = '<table><tr><th>Strike</th><th>Type</th><th>Entry</th><th>Current</th><th>P&L (1 lot)</th><th>Target</th><th>Stop</th><th>Rule</th></tr>' +
+          d.open.map(p => {
+            const pnl = p.live_pnl != null ? p.live_pnl : null;
+            const pnlPct = p.live_pnl_pct != null ? p.live_pnl_pct : null;
+            const pnlText = pnl != null ? `${fmtINR(pnl)} (${pnlPct >= 0 ? '+' : ''}${pnlPct}%)` : '—';
+            return `<tr>
+              <td>${p.strike}</td><td>${p.option_type}</td>
+              <td>Rs ${fmt(p.entry_price)}</td>
+              <td>${p.current_price != null ? 'Rs ' + fmt(p.current_price) : '—'}</td>
+              <td class="${pnlClass(pnl)}"><strong>${pnlText}</strong></td>
+              <td>Rs ${fmt(p.planned_target)}</td>
+              <td>Rs ${fmt(p.planned_stop)}</td>
+              <td>${(p.rule || (p.setup_tag||'').replace('PAPER_',''))}</td>
+            </tr>`;
+          }).join('') + '</table>';
+      }
+
+      const closedDiv = document.getElementById('closed-today');
+      if (!d.closed_today.length) {
+        closedDiv.innerHTML = '<div class="empty">No closes today</div>';
+      } else {
+        closedDiv.innerHTML = '<table><tr><th>Strike</th><th>Reason</th><th>Entry → Exit</th><th>P&L</th></tr>' +
+          d.closed_today.map(p => `<tr>
+            <td>${p.strike}${p.option_type}</td>
+            <td>${p.exit_reason}</td>
+            <td>${fmt(p.entry_price)} → ${fmt(p.exit_price)}</td>
+            <td class="${pnlClass(p.pnl)}">${fmtINR(p.pnl)}</td>
+          </tr>`).join('') + '</table>';
+      }
+
+      const st = d.stats_lifetime;
+      document.getElementById('stat-trades').innerText = st.trades;
+      document.getElementById('stat-wl').innerText = `${st.wins}/${st.losses}`;
+      document.getElementById('stat-wr').innerText = st.win_rate != null ? (fmt(st.win_rate * 100, 1) + '%') : '—';
+      const pnlEl = document.getElementById('stat-pnl');
+      pnlEl.innerText = st.total_pnl_inr != null ? fmtINR(st.total_pnl_inr) : '—';
+      pnlEl.className = 'stat-value ' + pnlClass(st.total_pnl_inr);
+    }
+
+    async function refreshSignals() {
+      const d = await fetchJSON('/api/signals');
+      const div = document.getElementById('signals-today');
+      if (!d.today.length) {
+        div.innerHTML = '<div class="empty">No signals fired today</div>';
+        return;
+      }
+      div.innerHTML = '<table><tr><th>Time</th><th>Rule</th><th>Direction</th><th>Action</th><th>Strike</th><th>Target Spot</th><th>Stop Spot</th><th>P(touch +20pts)</th></tr>' +
+        d.today.map(s => `<tr>
+          <td>${(s.ts || '').slice(11,19)}</td>
+          <td>${s.rule_name}</td>
+          <td><span class="status-pill pill-${s.direction === 'bullish' ? 'good' : s.direction === 'bearish' ? 'bad' : 'neutral'}">${s.direction}</span></td>
+          <td>${s.action}</td>
+          <td>${s.strike}${s.option_type || ''}</td>
+          <td>${fmt(s.target_spot, 0)}</td>
+          <td>${fmt(s.stop_spot, 0)}</td>
+          <td>${(s.prob_estimates && s.prob_estimates['20'] != null) ? fmt(s.prob_estimates['20'] * 100, 0) + '%' : '—'}</td>
+        </tr>`).join('') + '</table>';
+    }
+
+    async function refreshAll() {
+      try {
+        await Promise.all([refreshState(), refreshPositions(), refreshSignals()]);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.getElementById('f-mode').addEventListener('change', (e) => {
+      document.getElementById('scalp-fields').style.display = e.target.value === 'scalp' ? '' : 'none';
+    });
+
+    async function prefillFromLive() {
+      const s = await fetchJSON('/api/state');
+      if (s.spot) document.getElementById('f-spot').value = s.spot;
+      if (s.atm_iv) document.getElementById('f-iv').value = s.atm_iv;
+      if (s.dte_days) document.getElementById('f-dte').value = Math.round(s.dte_days);
+    }
+
+    async function runRecommender() {
+      const statusEl = document.getElementById('rec-status');
+      statusEl.innerText = 'Running...';
+      const body = {
+        spot: parseFloat(document.getElementById('f-spot').value),
+        iv: parseFloat(document.getElementById('f-iv').value),
+        dte: parseInt(document.getElementById('f-dte').value),
+        view: document.getElementById('f-view').value,
+        conviction: parseFloat(document.getElementById('f-conv').value),
+        win: parseFloat(document.getElementById('f-win').value),
+        capital: parseFloat(document.getElementById('f-cap').value),
+        scalp: document.getElementById('f-mode').value === 'scalp',
+        target_pts: parseFloat(document.getElementById('f-targetpts').value || 15),
+        hold_days: parseFloat(document.getElementById('f-holddays').value || 1.0),
+      };
+      const r = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      statusEl.innerText = '';
+      const div = document.getElementById('rec-results');
+      if (!d.ok) {
+        div.innerHTML = `<div class="error-box">Error: ${d.error}</div>`;
+        return;
+      }
+      let html = '';
+      if (d.event_risk && d.event_risk.spans_event) {
+        html += `<div class="status-pill pill-warn">EVENT: ${d.event_risk.events.join(', ')}</div>
+                 <div class="small" style="margin-bottom: 10px;">${d.event_risk.advice}</div>`;
+      }
+      const ideas = d.mode === 'scalp' ? d.ideas : d.qualified;
+      if (!ideas.length) {
+        html += '<div class="empty">No ideas met your criteria. Try lowering win threshold or extending DTE.</div>';
+      } else {
+        ideas.forEach((i, idx) => {
+          html += renderIdea(d.mode, i, idx + 1, false);
+        });
+      }
+      if (d.mode !== 'scalp' && d.rejected && d.rejected.length) {
+        html += '<h2 style="margin-top: 14px;">Near-Misses (below win threshold)</h2>';
+        d.rejected.forEach((i, idx) => {
+          html += renderIdea('strategy', i, idx + 1, true);
+        });
+      }
+      div.innerHTML = html;
+    }
+
+    function renderIdea(mode, i, num, rejected) {
+      const cls = rejected ? 'idea-card rejected' : 'idea-card';
+      if (mode === 'scalp') {
+        return `<div class="${cls}">
+          <div class="idea-header"><strong>[${num}] BUY ${i.type} ${i.strike}</strong> @ Rs ${i.premium}
+            <span class="status-pill pill-good">P(touch) ${fmt(i.prob_touch * 100, 0)}%</span></div>
+          <div class="small">target +Rs ${fmt(i.target_gain_per_lot, 0)}/lot · bleed -Rs ${fmt(i.theta_bleed_per_lot, 0)} · R/R ${fmt(i.risk_reward, 2)}</div>
+          <div class="small">cost Rs ${fmt(i.cost_per_lot, 0)}/lot · E[P&L] Rs ${fmt(i.expected_pnl_per_lot, 0)} · max loss Rs ${fmt(i.max_loss_per_lot, 0)}</div>
+          <ul class="rationale">${(i.rationale || []).map(r => `<li>${r}</li>`).join('')}</ul>
+        </div>`;
+      }
+      const legs = (i.legs || []).map(l => `${l.action} ${l.type} ${l.strike} @ Rs ${l.premium}`).join('  ·  ');
+      const pnlCls = i.expected_payoff_inr > 0 ? 'pos-good' : 'pos-bad';
+      return `<div class="${cls}">
+        <div class="idea-header">
+          <strong>[${num}] ${i.name}</strong> (${i.view}) · lots ${i.lots}
+          <span class="status-pill pill-${i.prob_profit > 0.65 ? 'good' : i.prob_profit > 0.5 ? 'warn' : 'bad'}">P(win) ${fmt(i.prob_profit * 100, 0)}%</span>
+        </div>
+        <div class="legs">${legs}</div>
+        <div class="small" style="margin-top: 6px;">
+          cost ${fmtINR(i.cost_inr)} · max P ${fmtINR(i.max_profit_inr)} · max L ${fmtINR(i.max_loss_inr)} ·
+          BE [${(i.breakevens || []).join(', ')}] · R/R ${fmt(i.return_on_risk, 2)} ·
+          <span class="${pnlCls}">E[P&L] ${fmtINR(i.expected_payoff_inr)}</span>
+        </div>
+        <ul class="rationale">${(i.rationale || []).map(r => `<li>${r}</li>`).join('')}</ul>
+      </div>`;
+    }
+
+    refreshAll();
+    setInterval(refreshAll, REFRESH_MS);
+
+    // ---- Chart.js setup ----
+    if (window.Chart) {
+      Chart.defaults.color = '#9aa3b2';
+      Chart.defaults.borderColor = '#232730';
+      Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    }
+
+    let pnlChart = null, rulesChart = null;
+    async function refreshCharts() {
+      try {
+        const pnl = await fetchJSON('/api/paper_pnl_curve');
+        const pts = pnl.points || [];
+        const canvas = document.getElementById('pnlCurveChart');
+        const empty = document.getElementById('pnlCurveEmpty');
+        if (!pts.length) {
+          canvas.style.display = 'none'; empty.style.display = 'block';
+        } else {
+          canvas.style.display = ''; empty.style.display = 'none';
+          const labels = pts.map(p => (p.ts || '').slice(5, 16));
+          const data = pts.map(p => p.cum_pnl);
+          const finalPos = (pnl.final_cum || 0) >= 0;
+          const color = finalPos ? '#66bb6a' : '#ef5350';
+          if (pnlChart) pnlChart.destroy();
+          pnlChart = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: { labels, datasets: [{
+              label: 'Cumulative P&L (Rs)', data,
+              borderColor: color, backgroundColor: color + '33',
+              fill: true, tension: 0.2, pointRadius: 2,
+            }]},
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { y: { ticks: { callback: v => 'Rs ' + v } } }
+            }
+          });
+        }
+      } catch (e) { console.error(e); }
+
+      try {
+        const rf = await fetchJSON('/api/rule_fires');
+        const canvas = document.getElementById('ruleFiresChart');
+        const empty = document.getElementById('ruleFiresEmpty');
+        if (!rf.rules || !rf.rules.length) {
+          canvas.style.display = 'none'; empty.style.display = 'block';
+        } else {
+          canvas.style.display = ''; empty.style.display = 'none';
+          if (rulesChart) rulesChart.destroy();
+          rulesChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: { labels: rf.rules, datasets: [{
+              label: 'Fires', data: rf.counts,
+              backgroundColor: 'rgba(79,195,247,0.7)',
+            }]},
+            options: {
+              indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+          });
+        }
+      } catch (e) { console.error(e); }
+    }
+    refreshCharts();
+    setInterval(refreshCharts, 30000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "weekday_fire": [1, 2],
+  "time_window_start": 105,
+  "time_window_end": 285,
+  "min_dte_days": 1,
+  "max_dte_days": 3,
+  "sigma_short_mult": 1.0,
+  "wing_width_pts": 200,
+  "target_credit_pct_remaining": 0.25,
+  "min_credit_pts": 8.0,
+  "skip_on_event": true
+}

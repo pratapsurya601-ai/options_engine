@@ -1,0 +1,10 @@
+{
+  "rolling_window_days": 3,
+  "score_threshold": 0.35,
+  "require_price_confirmation": true,
+  "target_atr_mult": 2.0,
+  "stop_atr_mult": 1.2,
+  "hold_minutes": 90,
+  "trail_activation_pts": 8,
+  "trail_distance_pts": 5
+}

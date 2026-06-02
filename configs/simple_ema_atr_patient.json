@@ -1,0 +1,7 @@
+{
+  "exit_mode": "atr",
+  "target_atr_mult": 2.5,
+  "stop_atr_mult": 1.5,
+  "hold_minutes": 45,
+  "strike_offset_steps": 0
+}

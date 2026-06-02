@@ -1,0 +1,7 @@
+{
+  "sigma_short_mult": 1.0,
+  "wing_width_pts": 100,
+  "min_credit_pts": 3.0,
+  "backtest_stop_credit_mult": 1.5,
+  "backtest_target_close_pct": 0.30
+}

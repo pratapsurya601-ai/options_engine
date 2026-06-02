@@ -1,0 +1,14 @@
+{
+  "macd_fast": 12,
+  "macd_slow": 26,
+  "macd_signal": 9,
+  "cross_recency_bars": 3,
+  "bb_period": 20,
+  "bb_std": 2.0,
+  "bb_pct": 0.3,
+  "require_trend_alignment": false,
+  "strike_offset_steps": -4,
+  "target_premium_pts": 10,
+  "stop_premium_pts": 8,
+  "hold_minutes": 20
+}

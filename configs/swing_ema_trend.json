@@ -1,0 +1,10 @@
+{
+  "target_premium_pts": 35,
+  "stop_premium_pts": 25,
+  "hold_minutes": 240,
+  "trail_activation_pts": 12,
+  "trail_distance_pts": 8,
+  "enable_pullback": true,
+  "trend_stability_bars": 5,
+  "pullback_pct": 0.003
+}

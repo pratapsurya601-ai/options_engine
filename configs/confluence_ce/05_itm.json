@@ -1,0 +1,17 @@
+{
+  "min_signals": 4,
+  "ema_fast": 20,
+  "ema_slow": 50,
+  "cross_recency_bars": 5,
+  "macd_fast": 12,
+  "macd_slow": 26,
+  "macd_signal": 9,
+  "activity_z_threshold": 0.3,
+  "strike_offset_steps": -4,
+  "target_premium_pts": 10,
+  "stop_premium_pts": 8,
+  "hold_minutes": 20,
+  "time_window_start": 30,
+  "time_window_end": 270,
+  "r": 0.065
+}

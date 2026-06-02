@@ -1,0 +1,9 @@
+{
+  "exit_mode": "atr",
+  "target_atr_mult": 2.0,
+  "stop_atr_mult": 1.2,
+  "hold_minutes": 30,
+  "min_activity_z": 0.5,
+  "activity_lookback": 12,
+  "activity_scale": 0.25
+}

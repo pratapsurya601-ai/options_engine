@@ -1,0 +1,7 @@
+{
+  "min_drop_pct": 0.025,
+  "drop_lookback_days": 3,
+  "rsi_max": 35,
+  "min_activity_z": 0.3,
+  "strike_offset_steps": -2
+}

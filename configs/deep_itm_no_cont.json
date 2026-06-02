@@ -1,0 +1,6 @@
+{
+  "enable_continuation": false,
+  "itm_offset_steps": 4,
+  "target_premium_pct": 0.40,
+  "stop_premium_pct": 0.25
+}
