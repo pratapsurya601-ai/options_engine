@@ -69,7 +69,15 @@ def compute_snapshot_summary(chain: pd.DataFrame) -> dict:
     if df.empty:
         return out
 
-    spot = float(df["spot"].iloc[0])
+    # Defensive: Postgres NUMERIC -> Decimal; psycopg can also return None
+    # or pd.NA via empty rows. Coerce, drop bad, fall back to NaN-safe path.
+    raw_spot = df["spot"].iloc[0]
+    try:
+        if raw_spot is None or pd.isna(raw_spot):
+            return out
+        spot = float(raw_spot)
+    except (TypeError, ValueError):
+        return out
     out["spot"] = spot
     out["expiry"] = expiry
 
