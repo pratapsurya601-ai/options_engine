@@ -56,20 +56,32 @@ def _get_database_url() -> str:
 
 @st.cache_resource
 def get_connection():
-    """Open and cache a single psycopg connection."""
+    """Open and cache a single psycopg connection.
+
+    NOTE: connection has the DEFAULT (tuple) row_factory so that
+    ``pd.read_sql`` produces correct DataFrames (it iterates the cursor
+    expecting sequences; dict_row would give back the column names as
+    values). Code paths that need dict-style access should construct their
+    own cursor via ``_dict_cursor(conn)``.
+    """
     url = _get_database_url()
     if not url:
         raise RuntimeError(
             "DATABASE_URL not configured. Set it in .streamlit/secrets.toml or env."
         )
-    return psycopg.connect(url, row_factory=dict_row, autocommit=True)
+    return psycopg.connect(url, autocommit=True)
+
+
+def _dict_cursor(conn):
+    """Return a cursor that yields dicts (use for manual fetchone/fetchall paths)."""
+    return conn.cursor(row_factory=dict_row)
 
 
 @st.cache_data(ttl=300)
 def coverage_stats() -> dict:
     """Total snapshots, days covered, oldest/newest. Empty defaults on no data."""
     conn = get_connection()
-    with conn.cursor() as cur:
+    with _dict_cursor(conn) as cur:
         cur.execute(
             """
             SELECT
@@ -96,7 +108,7 @@ def coverage_stats() -> dict:
 def latest_snapshot_summary() -> Optional[dict]:
     """Spot, expiry, n_strikes at the most recent snapshot. None if no data."""
     conn = get_connection()
-    with conn.cursor() as cur:
+    with _dict_cursor(conn) as cur:
         cur.execute(
             """
             SELECT snapshot_ts, spot, expiry, COUNT(*) AS n_strikes
@@ -198,7 +210,7 @@ def chain_at_timestamp(ts) -> pd.DataFrame:
 def recent_snapshot_timestamps(n: int = 10) -> list:
     """Most recent N distinct snapshot timestamps (newest first)."""
     conn = get_connection()
-    with conn.cursor() as cur:
+    with _dict_cursor(conn) as cur:
         cur.execute(
             """
             SELECT DISTINCT snapshot_ts
