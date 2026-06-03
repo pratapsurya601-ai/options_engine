@@ -60,6 +60,8 @@ def home():
 - **OI Flow** - put/call writing velocity, COI signals
 - **Regime** - market regime classification with history
 - **Top Features** - predictive power scores from research pipeline
+- **Signals** - rule fires from cloud watcher (live)
+- **Paper Positions** - open + closed paper trades, PnL per rule
 
 ### Notes
 This dashboard reads directly from Aiven Postgres (`option_chain_snapshots`),
@@ -82,6 +84,8 @@ if PAGES_DIR.exists():
         ("3_oi_flow.py", "OI Flow"),
         ("4_regime.py", "Regime"),
         ("5_top_features.py", "Top Features"),
+        ("6_signals.py", "Signals"),
+        ("7_paper_positions.py", "Paper Positions"),
     ]
     for fname, title in _files:
         p = PAGES_DIR / fname

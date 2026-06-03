@@ -178,6 +178,130 @@ def recent_snapshot_timestamps(n: int = 10) -> list:
         return [r["snapshot_ts"] for r in cur.fetchall()]
 
 
+# ============================================================================
+# Cloud watcher tables — signals, paper positions, watcher runs
+# Cached at 60s (vs 300s for chain data) so signals show up quickly.
+# ============================================================================
+
+@st.cache_data(ttl=60)
+def recent_signals(limit: int = 200) -> pd.DataFrame:
+    """Most recent rule fires from signals table. Newest first."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT id, rule_name, symbol, ts, spot, action, strike, expiry,
+               premium, target_premium, stop_premium, outcome,
+               trigger_context, created_at
+        FROM signals
+        ORDER BY ts DESC
+        LIMIT %s
+        """,
+        conn,
+        params=(limit,),
+    )
+
+
+@st.cache_data(ttl=60)
+def signal_counts_by_rule(days: int = 30) -> pd.DataFrame:
+    """Signal fire counts grouped by rule over the last N days."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT rule_name,
+               COUNT(*)                                    AS total_fires,
+               COUNT(*) FILTER (WHERE outcome = 'opened_position')   AS opened,
+               COUNT(*) FILTER (WHERE outcome = 'skipped_cooldown')  AS cooldown_skipped,
+               COUNT(*) FILTER (WHERE outcome = 'alert_only')        AS alerts,
+               MAX(ts)                                     AS last_fired_at
+        FROM signals
+        WHERE ts > NOW() - (%s || ' days')::interval
+        GROUP BY rule_name
+        ORDER BY total_fires DESC
+        """,
+        conn,
+        params=(str(days),),
+    )
+
+
+@st.cache_data(ttl=60)
+def open_paper_positions() -> pd.DataFrame:
+    """All currently open paper positions."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT id, rule_name, symbol, expiry, strike, option_type, action,
+               lots, lot_size, entry_price, entry_ts, entry_spot,
+               planned_stop, planned_target, high_water_mark, setup_tag
+        FROM positions
+        WHERE status = 'open'
+        ORDER BY entry_ts DESC
+        """,
+        conn,
+    )
+
+
+@st.cache_data(ttl=60)
+def closed_paper_positions(limit: int = 200) -> pd.DataFrame:
+    """Most recently closed paper positions with realized PnL."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT id, rule_name, symbol, expiry, strike, option_type, action,
+               lots, lot_size, entry_price, entry_ts, exit_price, exit_ts,
+               exit_reason, pnl, setup_tag
+        FROM positions
+        WHERE status = 'closed'
+        ORDER BY exit_ts DESC NULLS LAST
+        LIMIT %s
+        """,
+        conn,
+        params=(limit,),
+    )
+
+
+@st.cache_data(ttl=60)
+def position_pnl_summary() -> pd.DataFrame:
+    """Realized PnL aggregates per rule (closed positions only)."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT rule_name,
+               COUNT(*)                                  AS n_trades,
+               COUNT(*) FILTER (WHERE pnl > 0)           AS wins,
+               COUNT(*) FILTER (WHERE pnl < 0)           AS losses,
+               COALESCE(SUM(pnl), 0)                     AS total_pnl,
+               COALESCE(AVG(pnl), 0)                     AS avg_pnl,
+               COALESCE(AVG(pnl) FILTER (WHERE pnl > 0), 0)  AS avg_win,
+               COALESCE(AVG(pnl) FILTER (WHERE pnl < 0), 0)  AS avg_loss,
+               MIN(exit_ts)                              AS first_exit,
+               MAX(exit_ts)                              AS last_exit
+        FROM positions
+        WHERE status = 'closed'
+        GROUP BY rule_name
+        ORDER BY total_pnl DESC
+        """,
+        conn,
+    )
+
+
+@st.cache_data(ttl=60)
+def recent_watcher_runs(limit: int = 50) -> pd.DataFrame:
+    """Recent cloud watcher invocations for debugging."""
+    conn = get_connection()
+    return pd.read_sql(
+        """
+        SELECT id, rule_name, symbol, started_at, finished_at,
+               bars_loaded, signals_fired, positions_opened, positions_closed,
+               trail_updated, status, error_message
+        FROM watcher_runs
+        ORDER BY started_at DESC
+        LIMIT %s
+        """,
+        conn,
+        params=(limit,),
+    )
+
+
 @st.cache_data(ttl=300)
 def historical_snapshots(symbol: str = "NIFTY", expiry=None, days: int = 30) -> pd.DataFrame:
     """Time-series chain rows for trend analysis (last `days` calendar days)."""
