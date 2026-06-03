@@ -46,8 +46,8 @@ IST = timezone(timedelta(hours=5, minutes=30))
 def _make_rule(rule_name: str, config: dict):
     """Construct a rule instance by name."""
     if rule_name == "htf_naked":
-        from .rules.htf_naked import HtfNakedRule
-        return HtfNakedRule(**config)
+        from .rules.htf_naked import HtfNaked
+        return HtfNaked(**config)
     if rule_name == "nifty_intraday_buyer":
         from .rules.nifty_intraday_buyer import NiftyIntradayBuyer
         return NiftyIntradayBuyer(**config)
