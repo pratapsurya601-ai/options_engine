@@ -42,8 +42,13 @@ df = snapshots_per_day()
 if df.empty:
     st.info("No per-day data.")
 else:
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date")
+    # date column comes back from Postgres as datetime.date or string depending
+    # on driver/Python version; coerce defensively
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"]).sort_values("date")
+    if df.empty:
+        st.info("No per-day data (date column could not be parsed).")
+        st.stop()
     df["cumulative"] = df["n_snapshots"].cumsum()
 
     fig = go.Figure()
