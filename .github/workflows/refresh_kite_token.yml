@@ -1,0 +1,94 @@
+name: Refresh Kite Token
+
+# Runs every weekday morning before market open, programmatically logs in to
+# Zerodha via TOTP 2FA, captures a fresh KITE_ACCESS_TOKEN, and updates the
+# repo secret of the same name. The chain_snapshot workflow then uses the
+# fresh token automatically for the day's captures.
+#
+# IMPORTANT: This requires storing Zerodha credentials in GitHub Secrets.
+# See docs/auto_token_refresh_setup.md for the trade-offs and setup steps.
+#
+# Required repo secrets:
+#   KITE_API_KEY           — already set
+#   KITE_API_SECRET        — already set
+#   ZERODHA_USER_ID        — Zerodha login id (e.g. 'AB1234')
+#   ZERODHA_PASSWORD       — account password
+#   ZERODHA_TOTP_SECRET    — base32 TOTP secret from External 2FA setup
+#   GH_PAT                 — Personal Access Token with 'repo' scope so this
+#                            workflow can write KITE_ACCESS_TOKEN secret
+
+on:
+  schedule:
+    # 8:30 AM IST = 03:00 UTC, Monday-Friday
+    # (Kite tokens expire at 6 AM IST; we refresh 2h45m before market opens
+    # to leave room for retries.)
+    - cron: '0 3 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: refresh-kite-token
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Refresh and verify token
+        id: refresh
+        env:
+          KITE_API_KEY:        ${{ secrets.KITE_API_KEY }}
+          KITE_API_SECRET:     ${{ secrets.KITE_API_SECRET }}
+          ZERODHA_USER_ID:     ${{ secrets.ZERODHA_USER_ID }}
+          ZERODHA_PASSWORD:    ${{ secrets.ZERODHA_PASSWORD }}
+          ZERODHA_TOTP_SECRET: ${{ secrets.ZERODHA_TOTP_SECRET }}
+        run: |
+          NEW_TOKEN=$(python scripts/refresh_kite_token.py --verify)
+          # Mask the token in any logs that follow
+          echo "::add-mask::$NEW_TOKEN"
+          # Stash in step output so the next step can read it without re-printing
+          echo "new_token=$NEW_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Update KITE_ACCESS_TOKEN repo secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          NEW_TOKEN: ${{ steps.refresh.outputs.new_token }}
+        run: |
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "::error::Refresh step did not produce a token."
+            exit 1
+          fi
+          # Mask one more time defensively
+          echo "::add-mask::$NEW_TOKEN"
+          gh secret set KITE_ACCESS_TOKEN \
+            --body "$NEW_TOKEN" \
+            --repo "${{ github.repository }}"
+          echo "KITE_ACCESS_TOKEN updated successfully."
+
+      - name: Report on failure
+        if: failure()
+        run: |
+          echo "::error::Auto token refresh failed."
+          echo "::error::Common causes:"
+          echo "::error::  1. ZERODHA_TOTP_SECRET wrong or rotated"
+          echo "::error::  2. Zerodha changed login flow (CAPTCHA, new field, etc.)"
+          echo "::error::  3. Account locked / suspicious login detection"
+          echo "::error::  4. GH_PAT expired or lacks 'repo' scope"
+          echo "::error::Fix: refresh manually for today, investigate the cause."
+          echo "::error::See docs/auto_token_refresh_setup.md for the runbook."

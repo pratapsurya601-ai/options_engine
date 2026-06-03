@@ -8,3 +8,5 @@ pyarrow>=14.0.0
 # Streamlit Cloud dashboard (streamlit_app.py)
 streamlit>=1.36
 plotly>=5.18
+# Auto Kite token refresh (TOTP-based)
+pyotp>=2.9.0
