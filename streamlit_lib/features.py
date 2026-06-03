@@ -69,13 +69,16 @@ def compute_snapshot_summary(chain: pd.DataFrame) -> dict:
     if df.empty:
         return out
 
-    # Defensive: Postgres NUMERIC -> Decimal; psycopg can also return None
-    # or pd.NA via empty rows. Coerce, drop bad, fall back to NaN-safe path.
+    # Defensive: Postgres NUMERIC -> Decimal; psycopg can return None or
+    # pd.NA. Treat 0 as missing too (real NIFTY spot is never 0; bogus 0
+    # values came from cloud_watcher's earlier MarketState bug).
     raw_spot = df["spot"].iloc[0]
     try:
         if raw_spot is None or pd.isna(raw_spot):
             return out
         spot = float(raw_spot)
+        if spot <= 0:
+            return out
     except (TypeError, ValueError):
         return out
     out["spot"] = spot

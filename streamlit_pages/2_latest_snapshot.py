@@ -53,6 +53,12 @@ st.subheader("OI Profile")
 
 ce = df[df["option_type"] == "CE"].groupby("strike")["oi"].sum().reset_index()
 pe = df[df["option_type"] == "PE"].groupby("strike")["oi"].sum().reset_index()
+# psycopg returns NUMERIC/BIGINT as Decimal/object; coerce to float so Plotly +
+# unary negation work cleanly on new pandas / Python 3.14.
+ce["oi"] = pd.to_numeric(ce["oi"], errors="coerce").fillna(0).astype(float)
+pe["oi"] = pd.to_numeric(pe["oi"], errors="coerce").fillna(0).astype(float)
+ce["strike"] = pd.to_numeric(ce["strike"], errors="coerce").astype(float)
+pe["strike"] = pd.to_numeric(pe["strike"], errors="coerce").astype(float)
 
 fig = go.Figure()
 fig.add_bar(x=ce["strike"], y=ce["oi"], name="CE OI", marker_color="#66bb6a", opacity=0.85)
