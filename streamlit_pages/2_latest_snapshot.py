@@ -23,6 +23,12 @@ if not summary or chain.empty:
 ts = summary.get("snapshot_ts")
 st.markdown(f"**Snapshot timestamp:** `{ts}`")
 
+# Coerce Postgres Decimal -> float on the columns we'll use, so downstream
+# pandas comparisons / arithmetic don't choke on object dtype mixed types.
+for col in ("spot", "ltp", "bid", "ask", "iv", "oi", "volume", "strike"):
+    if col in chain.columns:
+        chain[col] = pd.to_numeric(chain[col], errors="coerce")
+
 feats = compute_snapshot_summary(chain)
 
 # Filter to the chosen expiry
@@ -32,10 +38,23 @@ if expiry:
 else:
     df = chain.copy()
 
+# Diagnostic: surface raw spot from the data so we can see what flows through
+diag_spot = None
+if not df.empty and "spot" in df.columns:
+    raw = df["spot"].dropna()
+    if not raw.empty:
+        try:
+            diag_spot = float(raw.iloc[0])
+        except Exception:
+            diag_spot = None
+
 # KV metrics
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-spot = feats.get("spot") or 0
-c1.metric("Spot", f"{spot:,.0f}")
+spot = feats.get("spot")
+# Fallback to direct read if feature computation missed it
+if spot is None and diag_spot is not None and diag_spot > 0:
+    spot = diag_spot
+c1.metric("Spot", f"{spot:,.0f}" if spot else "n/a")
 c2.metric("Max Pain", f"{feats['max_pain']:,.0f}" if feats.get("max_pain") else "n/a")
 c3.metric("Call Wall", f"{feats['call_wall']:,.0f}" if feats.get("call_wall") else "n/a")
 c4.metric("Put Wall", f"{feats['put_wall']:,.0f}" if feats.get("put_wall") else "n/a")
@@ -83,7 +102,8 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("IV Smile")
-iv_df = df[df["iv"].notna() & (df["iv"] > 0)].copy()
+# df["iv"] is already coerced above. Safe to compare numerically.
+iv_df = df[df["iv"].notna() & (df["iv"].astype(float) > 0)].copy()
 if iv_df.empty:
     st.info("No IV data in this snapshot.")
 else:
