@@ -1,0 +1,87 @@
+name: Cloud Watcher (Live Signals)
+
+# Stateless watcher invocation. Every 5 min during Indian market hours,
+# fetches recent bars + chain, loads state from Aiven, evaluates the
+# configured rule, persists any new signals / position changes.
+#
+# Matrix strategy = each rule is its own parallel job, so a single
+# rule's failure doesn't break the others.
+#
+# Quota math:
+#   3 rules x 75 runs/day x 1 min each = 225 minutes/day = ~75h/month
+#   Public repo: unlimited (free). Private: 2000 min/month quota -
+#     this would exceed, so keep repo public OR drop to 2 rules.
+
+on:
+  schedule:
+    # Same window as chain_snapshot.yml (9:15 - 15:30 IST = 03:45 - 10:00 UTC)
+    - cron: '45,50,55 3 * * 1-5'
+    - cron: '*/5 4-9 * * 1-5'
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      rule:
+        description: 'Rule to run (htf_naked / nifty_intraday_buyer / panic_bounce_ce / all)'
+        default: 'htf_naked'
+      force:
+        description: 'Skip market-hours check (for testing)'
+        default: 'false'
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rule: htf_naked
+            config: configs/htf_naked/02_15min_itm.json
+            interval_min: 15
+          - rule: panic_bounce_ce
+            config: configs/panic_bounce_ce/06_aggressive_retrace.json
+            interval_min: 5
+          - rule: nifty_intraday_buyer
+            config: configs/nifty_intraday_buyer/04_strict_volume.json
+            interval_min: 5
+    concurrency:
+      group: cloud-watcher-${{ matrix.rule }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Watch ${{ matrix.rule }}
+        env:
+          DATABASE_URL:        ${{ secrets.DATABASE_URL }}
+          KITE_API_KEY:        ${{ secrets.KITE_API_KEY }}
+          KITE_API_SECRET:     ${{ secrets.KITE_API_SECRET }}
+          KITE_ACCESS_TOKEN:   ${{ secrets.KITE_ACCESS_TOKEN }}
+          PYTHONIOENCODING:    utf-8
+          RULE:                ${{ matrix.rule }}
+          CONFIG:              ${{ matrix.config }}
+          INTERVAL_MIN:        ${{ matrix.interval_min }}
+          DISPATCH_RULE:       ${{ github.event.inputs.rule }}
+          FORCE_FLAG:          ${{ github.event.inputs.force == 'true' && '--force' || '' }}
+        run: |
+          # Skip rules that don't match a manual single-rule dispatch
+          if [ -n "$DISPATCH_RULE" ] && [ "$DISPATCH_RULE" != "all" ] && [ "$DISPATCH_RULE" != "$RULE" ]; then
+            echo "Skipping $RULE (manual dispatch requested $DISPATCH_RULE)"
+            exit 0
+          fi
+          python -m engine.cloud_watcher \
+            --rule "$RULE" \
+            --config "$CONFIG" \
+            --interval-min "$INTERVAL_MIN" \
+            $FORCE_FLAG
