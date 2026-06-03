@@ -88,39 +88,38 @@ def _resample_5min_to(bars: list, interval_min: int) -> list:
     return out
 
 
-def _load_recent_bars(symbol: str, interval_min: int,
+def _load_recent_bars(symbol: str, interval_min: int = 5,
                        lookback_min: int = 300) -> list:
-    """Fetch recent bars from Kite. Returns list of Bar.
-    We always request 5-min bars and resample to the target interval to
-    keep the Kite call uniform across rules."""
+    """Fetch 5-minute bars from Kite. Returns list of Bar.
+    interval_min is currently unused — rules access state.bars_5m and resample
+    internally to their working timeframe (e.g. htf_naked resamples to 15m).
+    Kept in the signature for backwards compatibility / future use."""
     from .data.kite_source import historical_bars, nearest_future_token
     from .state import Bar
 
     token, _, _ = nearest_future_token(symbol)
     now = datetime.now(tz=IST)
-    # Session start today
     session_start = datetime.combine(now.date(), dtime(9, 15), tzinfo=IST)
     from_dt = max(session_start, now - timedelta(minutes=lookback_min))
     raw = historical_bars(token, interval="5minute", from_dt=from_dt, to_dt=now)
-    bars_5m = [
+    return [
         Bar(ts=r["date"], open=float(r["open"]), high=float(r["high"]),
             low=float(r["low"]), close=float(r["close"]),
             volume=int(r.get("volume", 0) or 0))
         for r in raw
     ]
-    return _resample_5min_to(bars_5m, interval_min)
 
 
 def _build_state(symbol: str, bars: list):
-    """Build a MarketState from bars. Mirrors what engine.watcher does."""
+    """Build a MarketState from 5-min bars. Mirrors engine.watcher."""
     from .state import MarketState
     from .data.kite_source import spot_ltp
     spot = spot_ltp(symbol)
     return MarketState(
         symbol=symbol,
         spot=spot,
-        bars=bars,
-        chain=None,  # cloud_watcher only loads chain on-demand
+        bars_5m=bars,
+        chain=None,  # filled after chain fetch
     )
 
 
