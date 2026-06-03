@@ -94,6 +94,59 @@ def _compute_oi_change(df: pd.DataFrame, prev_df: pd.DataFrame | None) -> pd.Dat
     return merged
 
 
+def _sanitize_for_db(df: pd.DataFrame) -> pd.DataFrame:
+    """Defensive conversion before Postgres insert.
+    - BIGINT columns: pd.NA / NaN / out-of-range -> None
+    - NUMERIC columns: pd.NA / NaN / inf -> None
+    Pandas float64 columns with NaN can leak into psycopg as float('nan'),
+    which Postgres rejects on a BIGINT column with 'bigint out of range'.
+    Forcing object dtype with explicit None breaks that path."""
+    import math
+    out = df.copy()
+    BIGINT_MAX = 2**63 - 1
+    BIGINT_MIN = -(2**63)
+
+    def safe_int(v):
+        if v is None:
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            return None
+        try:
+            iv = int(v)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if BIGINT_MIN <= iv <= BIGINT_MAX:
+            return iv
+        return None
+
+    def safe_float(v):
+        if v is None:
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            return None
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(fv) or math.isinf(fv):
+            return None
+        return fv
+
+    for col in ("oi", "volume", "oi_change"):
+        if col in out.columns:
+            out[col] = out[col].map(safe_int).astype(object)
+    for col in ("ltp", "bid", "ask", "iv", "spot"):
+        if col in out.columns:
+            out[col] = out[col].map(safe_float).astype(object)
+    return out
+
+
 def _write_to_aiven(df: pd.DataFrame) -> tuple[int | None, str | None]:
     """Write snapshot rows to Aiven Postgres. Returns (rows_written, error).
     Returns (None, None) if DATABASE_URL not set. Returns (None, error) on failure."""
@@ -102,8 +155,9 @@ def _write_to_aiven(df: pd.DataFrame) -> tuple[int | None, str | None]:
         return None, None
     try:
         from db.writer import get_conn, write_option_chain
+        clean_df = _sanitize_for_db(df)
         with get_conn(database_url) as conn:
-            n = write_option_chain(conn, df)
+            n = write_option_chain(conn, clean_df)
         return n, None
     except Exception as e:
         return None, str(e)
