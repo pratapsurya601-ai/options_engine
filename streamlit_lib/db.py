@@ -21,6 +21,28 @@ import streamlit as st
 from psycopg.rows import dict_row
 
 
+_NUMERIC_CHAIN_COLS = (
+    "spot", "ltp", "bid", "ask", "iv",
+    "oi", "oi_change", "volume", "strike",
+)
+
+
+def _coerce_chain_numerics(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce Postgres NUMERIC/BIGINT columns from Decimal/object to float.
+
+    psycopg returns NUMERIC as decimal.Decimal which lands in object-dtype
+    pandas columns. Under Python 3.14 / new pandas, comparisons like
+    `series > 0`, unary `-series`, and Plotly's serialization all break on
+    object columns. Coercing everything to numeric here means every Streamlit
+    page downstream gets clean float series without per-page guards."""
+    if df is None or len(df) == 0:
+        return df
+    for col in _NUMERIC_CHAIN_COLS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
 def _get_database_url() -> str:
     """Resolve the DATABASE_URL from Streamlit secrets or env."""
     # st.secrets raises if no secrets file exists; guard with try/except
@@ -89,7 +111,17 @@ def latest_snapshot_summary() -> Optional[dict]:
             LIMIT 1
             """
         )
-        return cur.fetchone()
+        row = cur.fetchone()
+    if row is None:
+        return None
+    # Coerce Decimal -> float at the boundary
+    out = dict(row)
+    if out.get("spot") is not None:
+        try:
+            out["spot"] = float(out["spot"])
+        except (TypeError, ValueError):
+            out["spot"] = None
+    return out
 
 
 @st.cache_data(ttl=300)
@@ -130,7 +162,7 @@ def expiries_available() -> pd.DataFrame:
 def latest_chain() -> pd.DataFrame:
     """Full chain at the most recent snapshot (all expiries)."""
     conn = get_connection()
-    return pd.read_sql(
+    df = pd.read_sql(
         """
         SELECT *
         FROM option_chain_snapshots
@@ -143,13 +175,14 @@ def latest_chain() -> pd.DataFrame:
         """,
         conn,
     )
+    return _coerce_chain_numerics(df)
 
 
 @st.cache_data(ttl=300)
 def chain_at_timestamp(ts) -> pd.DataFrame:
     """Full chain at a specific snapshot timestamp."""
     conn = get_connection()
-    return pd.read_sql(
+    df = pd.read_sql(
         """
         SELECT * FROM option_chain_snapshots
         WHERE symbol = 'NIFTY' AND snapshot_ts = %s
@@ -158,6 +191,7 @@ def chain_at_timestamp(ts) -> pd.DataFrame:
         conn,
         params=(ts,),
     )
+    return _coerce_chain_numerics(df)
 
 
 @st.cache_data(ttl=300)
@@ -315,7 +349,7 @@ def historical_snapshots(symbol: str = "NIFTY", expiry=None, days: int = 30) -> 
               AND snapshot_ts > NOW() - (%s || ' days')::interval
             ORDER BY snapshot_ts, strike, option_type
         """
-        return pd.read_sql(query, conn, params=(symbol, str(days)))
+        return _coerce_chain_numerics(pd.read_sql(query, conn, params=(symbol, str(days))))
     query = """
         SELECT snapshot_ts, spot, expiry, strike, option_type,
                ltp, oi, volume, iv
@@ -325,4 +359,4 @@ def historical_snapshots(symbol: str = "NIFTY", expiry=None, days: int = 30) -> 
           AND expiry = %s
         ORDER BY snapshot_ts, strike, option_type
     """
-    return pd.read_sql(query, conn, params=(symbol, str(days), expiry))
+    return _coerce_chain_numerics(pd.read_sql(query, conn, params=(symbol, str(days), expiry)))
