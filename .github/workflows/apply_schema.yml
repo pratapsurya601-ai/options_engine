@@ -1,0 +1,45 @@
+name: Apply Schema Migration
+
+# One-shot workflow to apply a SQL migration file to Aiven Postgres.
+# Trigger manually with the path to the .sql file (default: latest).
+# Uses the DATABASE_URL secret so you never have to paste it locally.
+
+on:
+  workflow_dispatch:
+    inputs:
+      schema_file:
+        description: 'Path to .sql file relative to repo root'
+        default: 'db/003_futures_vix_schema.sql'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install --upgrade pip psycopg[binary]
+      - name: Apply ${{ github.event.inputs.schema_file }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SCHEMA_FILE:  ${{ github.event.inputs.schema_file }}
+        run: |
+          python -c "
+          import os, psycopg
+          sql_path = os.environ['SCHEMA_FILE']
+          with open(sql_path) as f:
+              sql = f.read()
+          print(f'Applying {sql_path} ({len(sql)} chars)...')
+          conn = psycopg.connect(os.environ['DATABASE_URL'])
+          conn.execute(sql)
+          conn.commit()
+          conn.close()
+          print('Schema applied successfully.')
+          "
