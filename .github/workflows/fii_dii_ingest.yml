@@ -1,0 +1,41 @@
+name: FII/DII Daily Ingest
+
+# NSE publishes FII/DII cash + derivative numbers ~6 PM IST each trading day.
+# We run at 7 PM IST (13:30 UTC) Mon-Fri to give NSE time to finalize.
+#
+# Cost: 1 run/day x ~60s = ~20 min/month. Negligible.
+#
+# Failure mode: NSE blocks bots aggressively; if fetch returns empty/403,
+# the script exits 0 silently and we retry tomorrow. Missing 1-2 days
+# per quarter is normal and not catastrophic.
+
+on:
+  schedule:
+    - cron: '30 13 * * 1-5'   # 7:00 PM IST (NSE publishes ~6 PM)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: fii-dii-daily
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Ingest
+        env:
+          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          python -m ingestor.fii_dii_daily

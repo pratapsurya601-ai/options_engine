@@ -63,6 +63,45 @@ def log_run_finish(conn, run_id: int, rows: int, status: str, error: Optional[st
     conn.commit()
 
 
+def write_futures_snapshots(conn, df: pd.DataFrame) -> int:
+    """Bulk insert futures snapshot rows. Ignores conflicts on UNIQUE constraint."""
+    if df is None or df.empty:
+        return 0
+    cols = [
+        "symbol", "snapshot_ts", "expiry", "ltp", "bid", "ask",
+        "volume", "oi", "oi_change", "spot", "basis", "basis_pct",
+    ]
+    records = df[cols].where(pd.notnull(df[cols]), None).values.tolist()
+    sql = """
+        INSERT INTO futures_snapshots
+            (symbol, snapshot_ts, expiry, ltp, bid, ask,
+             volume, oi, oi_change, spot, basis, basis_pct)
+        VALUES (%s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (symbol, expiry, snapshot_ts) DO NOTHING
+    """
+    with conn.cursor() as cur:
+        cur.executemany(sql, records)
+        written = cur.rowcount
+    conn.commit()
+    logger.info("Wrote %d futures rows", written)
+    return written
+
+
+def write_vix_snapshot(conn, snapshot_ts: datetime, vix: float) -> int:
+    """Insert one VIX snapshot. Ignores conflict on primary key."""
+    sql = """
+        INSERT INTO vix_snapshots (snapshot_ts, vix)
+        VALUES (%s, %s)
+        ON CONFLICT (snapshot_ts) DO NOTHING
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql, (snapshot_ts, vix))
+        written = cur.rowcount
+    conn.commit()
+    return written
+
+
 def write_fii_dii(conn, row: dict) -> bool:
     """Upsert single day's FII/DII row."""
     sql = """

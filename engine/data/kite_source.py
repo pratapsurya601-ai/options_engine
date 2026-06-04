@@ -118,6 +118,72 @@ def spot_ltp(symbol: str = "NIFTY") -> float:
     return float(data[key]["last_price"])
 
 
+def india_vix_ltp() -> float | None:
+    """Fetch the current India VIX value. Returns None on failure."""
+    try:
+        kite = get_kite()
+        data = kite.ltp(["NSE:INDIA VIX"])
+        return float(data["NSE:INDIA VIX"]["last_price"])
+    except Exception:
+        return None
+
+
+def all_active_futures(symbol: str = "NIFTY") -> list[dict]:
+    """Return all currently-active monthly futures for `symbol` (nearest
+    first, up to ~3 contracts). Each row: {token, tradingsymbol, expiry}.
+    """
+    kite = get_kite()
+    instruments = _instruments_cached(kite, "NFO")
+    today = datetime.now(tz=IST).date()
+    fut = [
+        {
+            "token": i["instrument_token"],
+            "tradingsymbol": i["tradingsymbol"],
+            "expiry": i["expiry"],
+        }
+        for i in instruments
+        if i["name"] == symbol
+        and i["instrument_type"] == "FUT"
+        and i["expiry"] >= today
+    ]
+    fut.sort(key=lambda r: r["expiry"])
+    return fut
+
+
+def futures_quotes(symbol: str = "NIFTY") -> list[dict]:
+    """Fetch LTP + OI + volume for ALL active futures of `symbol`.
+    Returns list of dicts with keys: expiry, tradingsymbol, ltp, oi, volume,
+    bid, ask. Empty list on failure."""
+    futs = all_active_futures(symbol)
+    if not futs:
+        return []
+    kite = get_kite()
+    keys = [f"NFO:{f['tradingsymbol']}" for f in futs]
+    try:
+        data = kite.quote(keys)
+    except Exception:
+        return []
+    out = []
+    for f in futs:
+        k = f"NFO:{f['tradingsymbol']}"
+        d = data.get(k, {})
+        if not d:
+            continue
+        depth = d.get("depth") or {}
+        buy = (depth.get("buy") or [{}])[0]
+        sell = (depth.get("sell") or [{}])[0]
+        out.append({
+            "expiry": f["expiry"],
+            "tradingsymbol": f["tradingsymbol"],
+            "ltp": float(d.get("last_price") or 0) or None,
+            "oi": int(d.get("oi") or 0) or None,
+            "volume": int(d.get("volume") or 0) or None,
+            "bid": float(buy.get("price") or 0) or None,
+            "ask": float(sell.get("price") or 0) or None,
+        })
+    return out
+
+
 def nearest_future_token(symbol: str = "NIFTY") -> tuple[int, str, date]:
     """
     Return (instrument_token, tradingsymbol, expiry) for the nearest-expiry

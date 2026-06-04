@@ -163,6 +163,67 @@ def _write_to_aiven(df: pd.DataFrame) -> tuple[int | None, str | None]:
         return None, str(e)
 
 
+def _capture_futures_and_vix(symbol: str, snapshot_ts: datetime,
+                              spot: float) -> tuple[int, int, list[str]]:
+    """Fetch + write futures snapshots and India VIX for this 5-min tick.
+
+    Best-effort: failures here NEVER abort the option-chain capture.
+    Returns (futures_rows_written, vix_rows_written, errors)."""
+    from .kite_source import futures_quotes, india_vix_ltp
+    errors: list[str] = []
+    futures_written = 0
+    vix_written = 0
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        return 0, 0, []
+
+    # --- Futures ---
+    try:
+        futs = futures_quotes(symbol)
+        if futs:
+            rows = []
+            for f in futs:
+                ltp = f.get("ltp")
+                if not ltp or not spot:
+                    continue
+                basis = ltp - spot
+                basis_pct = (basis / spot * 100.0) if spot else None
+                rows.append({
+                    "symbol": symbol,
+                    "snapshot_ts": snapshot_ts,
+                    "expiry": f["expiry"],
+                    "ltp": ltp,
+                    "bid": f.get("bid"),
+                    "ask": f.get("ask"),
+                    "volume": f.get("volume"),
+                    "oi": f.get("oi"),
+                    "oi_change": None,
+                    "spot": spot,
+                    "basis": basis,
+                    "basis_pct": basis_pct,
+                })
+            if rows:
+                from db.writer import get_conn, write_futures_snapshots
+                fdf = _sanitize_for_db(pd.DataFrame(rows))
+                with get_conn(database_url) as conn:
+                    futures_written = write_futures_snapshots(conn, fdf)
+    except Exception as e:
+        errors.append(f"futures: {type(e).__name__}: {e}")
+
+    # --- VIX ---
+    try:
+        vix = india_vix_ltp()
+        if vix is not None:
+            from db.writer import get_conn, write_vix_snapshot
+            with get_conn(database_url) as conn:
+                vix_written = write_vix_snapshot(conn, snapshot_ts, vix)
+    except Exception as e:
+        errors.append(f"vix: {type(e).__name__}: {e}")
+
+    return futures_written, vix_written, errors
+
+
 def take_snapshot(
     symbol: str = "NIFTY",
     with_oi: bool = True,
@@ -248,6 +309,16 @@ def take_snapshot(
         else:
             print(f"[{ts.strftime('%H:%M:%S')}] Aiven write: {n_written} rows OK",
                   flush=True)
+
+        # Futures + VIX best-effort (never aborts the snapshot)
+        fut_n, vix_n, fv_errs = _capture_futures_and_vix(symbol, ts, chain.spot)
+        result["futures_rows_written"] = fut_n
+        result["vix_rows_written"] = vix_n
+        if fv_errs:
+            for e in fv_errs:
+                print(f"[{ts.strftime('%H:%M:%S')}] aux: {e}", file=sys.stderr)
+        print(f"[{ts.strftime('%H:%M:%S')}] aux write: futures={fut_n} vix={vix_n}",
+              flush=True)
 
     return result
 
