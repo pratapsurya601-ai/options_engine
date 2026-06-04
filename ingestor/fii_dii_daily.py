@@ -119,7 +119,14 @@ def main():
     from .fii_dii_fetcher import fetch_fii_dii_cash, fetch_fii_derivatives
     from db.writer import get_conn, write_fii_dii
 
-    nse = NSEClient()
+    nse = NSEClient(
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        timeout=15,
+    )
     cash_rows = []
     deriv_rows = []
 
