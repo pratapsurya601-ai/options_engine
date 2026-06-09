@@ -20,10 +20,14 @@ on:
   schedule:
     # Cron is in UTC. IST = UTC+5:30.
     # 9:15 IST = 03:45 UTC, 15:30 IST = 10:00 UTC
-    # We use three separate cron lines to cover the window cleanly:
-    - cron: '45,50,55 3 * * 1-5'   # 9:15, 9:20, 9:25 IST
-    - cron: '*/5 4-9 * * 1-5'      # 9:30 IST → 15:25 IST
-    - cron: '0 10 * * 1-5'         # 15:30 IST (last fire)
+    # NOTE on minute offsets: GitHub Actions schedules cluster heavily on
+    # multiples of 5 (everyone uses '*/5'), so those get throttled hardest.
+    # We use prime-ish off-peak minutes (2,7,12,17,...). chain_snapshot
+    # runs at +2 minutes past, cloud_watcher at +3 — staggered so they
+    # don't contend for the same scheduler slot.
+    - cron: '47,52,57 3 * * 1-5'                            # 9:17, 9:22, 9:27 IST
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 4-9 * * 1-5' # 9:32 → 15:27 IST
+    - cron: '2 10 * * 1-5'                                  # 15:32 IST (last fire)
   workflow_dispatch:
     inputs:
       symbol:

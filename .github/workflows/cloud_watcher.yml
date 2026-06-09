@@ -14,10 +14,11 @@ name: Cloud Watcher (Live Signals)
 
 on:
   schedule:
-    # Same window as chain_snapshot.yml (9:15 - 15:30 IST = 03:45 - 10:00 UTC)
-    - cron: '45,50,55 3 * * 1-5'
-    - cron: '*/5 4-9 * * 1-5'
-    - cron: '0 10 * * 1-5'
+    # Same window as chain_snapshot.yml but staggered by 1 minute so the two
+    # workflows don't hit GitHub's scheduler in the same slot.
+    - cron: '48,53,58 3 * * 1-5'                            # 9:18, 9:23, 9:28 IST
+    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 4-9 * * 1-5' # 9:33 → 15:28 IST
+    - cron: '3 10 * * 1-5'                                  # 15:33 IST (last fire)
   workflow_dispatch:
     inputs:
       rule:
